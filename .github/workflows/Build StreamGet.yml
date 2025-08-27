@@ -42,6 +42,6 @@ jobs:
       with:
         tag_name: v${{ steps.timestamp.outputs.timestamp }}
         name: Build ${{ steps.timestamp.outputs.timestamp }}
-        files: dist/streamget_${{ steps.timestamp.outputs.timestamp }}.exe
+        files: dist/streamget${{ steps.timestamp.outputs.timestamp }}.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

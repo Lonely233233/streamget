@@ -4,9 +4,9 @@ import sys
 import argparse
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='打包 StreamGet 工具')
-    parser.add_argument('--path', required=True, help='要打包的 Python 脚本路径')
-    parser.add_argument('--packages', help='site-packages 目录路径（可选）')
+    parser = argparse.ArgumentParser(description='Package StreamGet tool')
+    parser.add_argument('--path', required=True, help='Path to the Python script to package')
+    parser.add_argument('--packages', help='Path to site-packages directory (optional)')
     return parser.parse_args()
 
 def get_site_packages_path():
@@ -18,11 +18,15 @@ def get_site_packages_path():
         return os.path.join(python_dir, 'Lib', 'site-packages')
 
 def main():
+    # 设置控制台编码为 UTF-8 以避免中文字符问题
+    if sys.stdout.encoding != 'utf-8':
+        sys.stdout.reconfigure(encoding='utf-8')
+    
     args = parse_arguments()
     script_path = os.path.abspath(args.path)
     
     if not os.path.exists(script_path):
-        print(f"错误: 脚本文件 '{script_path}' 不存在")
+        print(f"Error: Script file '{script_path}' does not exist")
         sys.exit(1)
     
     site_packages_path = args.packages or get_site_packages_path()
@@ -103,12 +107,15 @@ def main():
     for imp in hidden_imports:
         pyinstaller_args.append(f'--hidden-import={imp}')
 
-    print(f"开始打包脚本: {script_path}")
-    print(f"使用 site-packages 路径: {site_packages_path}")
+    print(f"Starting packaging script: {script_path}")
+    print(f"Using site-packages path: {site_packages_path}")
     
-    PyInstaller.__main__.run(pyinstaller_args)
-
-    print("打包完成！EXE 文件位于 ./dist 目录中")
+    try:
+        PyInstaller.__main__.run(pyinstaller_args)
+        print("Packaging completed! EXE file is in the ./dist directory")
+    except Exception as e:
+        print(f"Error during packaging: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

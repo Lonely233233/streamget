@@ -1,4 +1,4 @@
-name: Build StreamGet Executable
+name: Build StreamGet
 
 permissions:
   contents: write

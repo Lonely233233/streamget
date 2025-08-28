@@ -119,7 +119,7 @@ class StreamFetcher:
                 live_stream = self._class_loader.load(platform, proxy)
                 url = self._config.get_url_template(platform).format(room_id=room_id)
                 web_data = await live_stream.fetch_web_stream_data(url)
-                stream_obj = await live_stream.fetch_stream_url(web_data)
+                stream_obj = await live_stream.fetch_stream_url(web_data, "OD")
                 return stream_obj.to_json()
 
 
@@ -178,4 +178,5 @@ def main():
 
 
 if __name__ == "__main__":
+
         main()

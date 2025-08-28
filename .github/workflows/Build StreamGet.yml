@@ -51,7 +51,7 @@ jobs:
           pip install pyinstaller
       - name: Build executable
         run: |
-          python build.py --path cli.py
+          python streamget build.py --path streamget cli.py
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:
@@ -80,7 +80,7 @@ jobs:
           pip install pyinstaller
       - name: Build executable
         run: |
-          python build.py --path cli.py
+          python streamget build.py --path streamget cli.py
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:

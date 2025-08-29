@@ -19,7 +19,7 @@ class ArgumentParser:
                 self.parser.add_argument('-a', action='store_true', 
                                 help='Additional flag (platform specific)')
                 self.parser.add_argument('-p', '--proxy', 
-                                help='Proxy server address (e.g., http://example.com:port)')
+                                help='Proxy server address (e.g., http://example.com)')
 
         def parse(self) -> argparse.Namespace:
                 args = self.parser.parse_args()
@@ -150,7 +150,7 @@ class OutputFormatter:
                         "title": data.get("title", ""),
                         "anchor": data.get("anchor_name", ""),
                         "urls": urls
-                }, indent=2, ensure_ascii=False)
+                }, indent=2, ensure_ascii=True)
 
 
 class ErrorHandler:

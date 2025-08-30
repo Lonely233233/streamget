@@ -80,7 +80,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: 安装 UPX 5.0.2
         run: |
-          # 从官方仓库安装最新版UPX
           wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz
           tar -xvf upx-5.0.2-amd64_linux.tar.xz
           sudo mv upx-5.0.2-amd64_linux/upx /usr/local/bin/
@@ -96,7 +95,8 @@ jobs:
           pip install pyinstaller
       - name: Build executable with UPX
         run: |
-          pyinstaller --onefile --upx-disable=false --name streamget cli.py
+          upx --version
+          pyinstaller --onefile --upx --name streamget cli.py
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:

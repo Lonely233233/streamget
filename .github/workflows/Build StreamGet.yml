@@ -40,18 +40,27 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+      - name: 安装 UPX 5.0.2
+        run: |
+          $url = "https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-win64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "upx.zip"
+          Expand-Archive -Path "upx.zip" -DestinationPath "upx"
+          $upxPath = Resolve-Path "upx\upx-5.0.2-win64"
+          echo "UPX_DIR=$upxPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-      - name: Build executable
+      - name: Build executable with UPX
         run: |
-          python build.py --path cli.py
+          pyinstaller --onefile --upx-dir "$env:UPX_DIR" --name streamget.exe cli.py
+        env:
+          UPX_DIR: ${{ env.UPX_DIR }}
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:
@@ -69,18 +78,25 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+      - name: 安装 UPX 5.0.2
+        run: |
+          # 从官方仓库安装最新版UPX
+          wget https://github.com/upx/upx/releases/download/v5.0.2/upx-5.0.2-amd64_linux.tar.xz
+          tar -xvf upx-5.0.2-amd64_linux.tar.xz
+          sudo mv upx-5.0.2-amd64_linux/upx /usr/local/bin/
+          rm -rf upx-5.0.2-amd64_linux*
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-      - name: Build executable
+      - name: Build executable with UPX
         run: |
-          python build.py --path cli.py
+          pyinstaller --onefile --upx-disable=false --name streamget cli.py
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:

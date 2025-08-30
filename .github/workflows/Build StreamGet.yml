@@ -96,7 +96,7 @@ jobs:
       - name: Build executable with UPX
         run: |
           upx --version
-          pyinstaller --onefile --upx --name streamget cli.py
+          pyinstaller --onefile --name streamget cli.py
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:

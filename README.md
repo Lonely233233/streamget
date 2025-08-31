@@ -25,6 +25,12 @@ Node.js Runtime (Optional for Some Features):
 streamget install-node
 ```
 
+​​Executable file​​:
+
+```
+streamget.exe -l platforms -i roomid -a
+```
+
 To view the help information, run:  `streamget --help` .
 
 ------

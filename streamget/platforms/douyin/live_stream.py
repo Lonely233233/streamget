@@ -119,7 +119,7 @@ class DouyinLiveStream(BaseLiveStream):
                 stream_orientation = json_data['stream_url']['stream_orientation']
                 match_json_str2 = re.findall(r'"(\{\\"common\\":.*?)"]\)</script><script nonce=', html_str)
                 if match_json_str2:
-                    json_str = match_json_str2[0] if stream_orientation == 1 else match_json_str2[1]
+                    json_str = match_json_str2[0]
                     json_data2 = json.loads(
                         json_str.replace('\\', '').replace('"{', '{').replace('}"', '}').replace('u0026', '&'))
                     if 'origin' in json_data2['data']:

@@ -140,7 +140,7 @@ class OutputFormatter:
                 data = json.loads(json_data)
                 
                 urls = []
-                for key in ['m3u8_url', 'flv_url', 'record_url', 'rtmp_url']:
+                for key in ['flv_url', 'm3u8_url', 'record_url', 'rtmp_url']:
                         if key in data and data[key]:
                                 urls.append({"url": data[key]})
                 
@@ -183,3 +183,4 @@ async def main():
 
 if __name__ == "__main__":
         asyncio.run(main())
+

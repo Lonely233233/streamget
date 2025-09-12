@@ -112,7 +112,7 @@ class StreamGetPackager:
         pyinstaller_args = [
             script_path,
             '--name=streamget',
-            '--onefile',
+            '--onedir',
             '--console',
             '--clean',
             '--distpath=./dist',
@@ -133,7 +133,7 @@ class StreamGetPackager:
         
         try:
             PyInstaller.__main__.run(pyinstaller_args)
-            print("Packaging completed! EXE file is in the ./dist directory")
+            print("Packaging completed! Distribution folder is in the ./dist/streamget directory")
         except Exception as e:
             print(f"Error during packaging: {e}")
             sys.exit(1)

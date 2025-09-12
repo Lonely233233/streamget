@@ -117,7 +117,8 @@ class StreamGetPackager:
             '--clean',
             '--distpath=./dist',
             '--workpath=./build',
-            f'--paths={site_packages_path}'
+            f'--paths={site_packages_path}',
+            '--contents-directory', '.'  # 新增：启用旧版 onedir 布局，将依赖直接放在 streamget/ 同级，无 _internal 文件夹
         ]
 
         if icon_path:

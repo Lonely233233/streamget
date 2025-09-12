@@ -52,7 +52,7 @@ jobs:
       - name: Build executable
         run: |
           python build.py --path cli.py
-      - name: ZIP dist directory for release  # 新增：打包目录为 ZIP
+      - name: ZIP dist directory for release
         run: |
           Compress-Archive -Path dist/streamget -DestinationPath dist/streamget-windows.zip
       - name: Upload to GitHub Release
@@ -62,7 +62,7 @@ jobs:
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
           name: StreamGet CLI ${{ needs.create_release.outputs.version }}
-          files: dist/streamget-windows.zip  # 修改：上传 ZIP 而非单个文件
+          files: dist/streamget-windows.zip
           draft: false
           prerelease: false
 
@@ -84,7 +84,7 @@ jobs:
       - name: Build executable
         run: |
           python build.py --path cli.py
-      - name: ZIP dist directory for release  # 新增：打包目录为 ZIP
+      - name: ZIP dist directory for release
         run: |
           zip -r dist/streamget-linux.zip dist/streamget
       - name: Upload to GitHub Release
@@ -94,6 +94,6 @@ jobs:
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
           name: StreamGet CLI ${{ needs.create_release.outputs.version }}
-          files: dist/streamget-linux.zip  # 修改：上传 ZIP 而非单个文件
+          files: dist/streamget-linux.zip
           draft: false
           prerelease: false

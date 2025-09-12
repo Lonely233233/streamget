@@ -52,9 +52,6 @@ jobs:
       - name: Build executable
         run: |
           python build.py --path cli.py
-      - name: ZIP dist directory for release
-        run: |
-          Compress-Archive -Path dist/streamget -DestinationPath dist/streamget-windows.zip
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:
@@ -62,7 +59,7 @@ jobs:
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
           name: StreamGet CLI ${{ needs.create_release.outputs.version }}
-          files: dist/streamget-windows.zip
+          files: dist/streamget.exe
           draft: false
           prerelease: false
 
@@ -84,9 +81,6 @@ jobs:
       - name: Build executable
         run: |
           python build.py --path cli.py
-      - name: ZIP dist directory for release
-        run: |
-          zip -r dist/streamget-linux.zip dist/streamget
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         env:
@@ -94,6 +88,6 @@ jobs:
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
           name: StreamGet CLI ${{ needs.create_release.outputs.version }}
-          files: dist/streamget-linux.zip
+          files: dist/streamget
           draft: false
           prerelease: false

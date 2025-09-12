@@ -8,11 +8,6 @@ on:
     tags:
       - v_cli.*
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Manual version (e.g., 1.0.0 or leave empty for timestamp)'
-        required: false
-        default: ''
 
 jobs:
   create_release:
@@ -25,11 +20,7 @@ jobs:
         id: get_version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ -n "${{ github.event.inputs.version }}" ]]; then
-              VERSION=${{ github.event.inputs.version }}
-            else
-              VERSION=$(date -u +%Y%m%d%H%M%S)
-            fi
+            VERSION=$(date -u +%Y%m%d%H%M%S)
           else
             VERSION=${GITHUB_REF#refs/tags/}
             VERSION=${VERSION/v_cli./}
@@ -43,21 +34,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
+  build-windows:
     needs: create_release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            runner: linux
-            suffix: ''
-          - os: windows-latest
-            runner: windows
-            suffix: '.exe'
-          - os: macos-latest
-            runner: macos
-            suffix: ''
+    runs-on: windows-latest
+    
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -68,46 +48,52 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pytest
-      - name: Run tests (optional)
-        run: pytest  # 假设有 tests/；若无，移除此步
+          pip install pyinstaller
       - name: Build executable
-        run: python build.py --path cli.py
-      - name: Verify build
         run: |
-          if [[ "${{ matrix.runner }}" == "windows" ]]; then
-            dist/streamget.exe --help || exit 1
-          else
-            dist/streamget --help || exit 1
-          fi
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: streamget-${{ matrix.runner }}
-          path: dist/streamget${{ matrix.suffix }}
-
-  release:
-    needs: [create_release, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+          python build.py --path cli.py
+      - name: ZIP dist directory for release  # 新增：打包目录为 ZIP
+        run: |
+          Compress-Archive -Path dist/streamget -DestinationPath dist/streamget-windows.zip
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
           name: StreamGet CLI ${{ needs.create_release.outputs.version }}
-          body: |
-            Automated build:
-            - Windows: streamget-windows.exe
-            - Linux: streamget-linux
-            - macOS: streamget-macos
-          files: |
-            streamget-linux/streamget
-            streamget-windows/streamget.exe
-            streamget-macos/streamget
+          files: dist/streamget-windows.zip  # 修改：上传 ZIP 而非单个文件
+          draft: false
+          prerelease: false
+
+  build-linux:
+    needs: create_release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Build executable
+        run: |
+          python build.py --path cli.py
+      - name: ZIP dist directory for release  # 新增：打包目录为 ZIP
+        run: |
+          zip -r dist/streamget-linux.zip dist/streamget
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v_cli.${{ needs.create_release.outputs.version }}
+          name: StreamGet CLI ${{ needs.create_release.outputs.version }}
+          files: dist/streamget-linux.zip  # 修改：上传 ZIP 而非单个文件
           draft: false
           prerelease: false

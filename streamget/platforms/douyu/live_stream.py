@@ -2,6 +2,7 @@ import hashlib
 import json
 import re
 import time
+import asyncio
 
 import execjs
 
@@ -12,18 +13,32 @@ from ..base import BaseLiveStream
 
 class DouyuLiveStream(BaseLiveStream):
     """
-    A class for fetching and processing Douyu live stream information.
+    A class for fetching and processing Douyu live stream information, including live and recorded streams.
     """
     def __init__(self, proxy_addr: str | None = None, cookies: str | None = None):
         super().__init__(proxy_addr, cookies)
         self.mobile_headers = self._get_mobile_headers()
         self.pc_headers = self._get_pc_headers()
+        self._rid_pattern = re.compile(r'rid=([^&]+)')
+        self._domain_pattern = re.compile(r'douyu\.com/([^/?]+)')
+        self._vike_json_pattern = re.compile(r'<script id="vike_pageContext" type="application/json">(.*?)</script>')
+        self._v_pattern = re.compile(r'v=(\d+)')
+        self._param_pattern = re.compile(r'=([^&]+)')
 
     def _get_mobile_headers(self) -> dict:
         return {
             'user-agent': 'ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))',
             'cookie': self.cookies or '',
             'referer': 'https://m.douyu.com/3125893?rid=3125893&dyshid=0-96003918aa5365bc6dcb4933000316p1&dyshci=181',
+        }
+
+    def _get_pc_headers(self) -> dict:
+        return {
+            'user-agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            ),
+            'cookie': self.cookies or '',
         }
 
     @staticmethod
@@ -39,7 +54,7 @@ class DouyuLiveStream(BaseLiveStream):
         res = js.call('ub98484234')
 
         t10 = str(int(time.time()))
-        v = re.search(r'v=(\d+)', res).group(1)
+        v = self._v_pattern.search(res).group(1)
         rb = self._get_md5(str(rid) + str(did) + str(t10) + str(v))
 
         func_sign = re.sub(r'return rt;}\);?', 'return rt;}', res)
@@ -49,26 +64,26 @@ class DouyuLiveStream(BaseLiveStream):
         try:
             js = execjs.compile(func_sign)
             params = js.call('sign', rid, did, t10)
-            params_list = re.findall('=(.*?)(?=&|$)', params)
+            params_list = self._param_pattern.findall(params)
             return params_list
         except execjs.ProgramError:
             raise execjs.ProgramError('Failed to execute JS code. Please check if the Node.js environment')
 
-    async def _fetch_web_stream_url(self, rid: str, rate: str = '-1') -> dict:
-
+    async def _fetch_web_stream_url(self, rid: str, rate: str = '-1', cdn: str | None = None) -> dict:
         did = '10000000000000000000000000003306'
         params_list = await self._get_token_js(rid, did)
         data = {
             'v': params_list[0],
             'did': params_list[1],
             'tt': params_list[2],
-            'sign': params_list[3],  # 10分钟有效期
+            'sign': params_list[3],
             'ver': '22011191',
             'rid': rid,
-            'rate': rate,  # 0蓝光、3超清、2高清、-1默认
+            'rate': rate,
         }
+        if cdn:
+            data['cdn'] = cdn
 
-        # app_api = 'https://m.douyu.com/hgapi/livenc/room/getStreamUrl'
         app_api = f'https://www.douyu.com/lapi/live/getH5Play/{rid}'
         json_str = await async_req(url=app_api, proxy_addr=self.proxy_addr, headers=self.mobile_headers, data=data)
         json_data = json.loads(json_str)
@@ -76,7 +91,7 @@ class DouyuLiveStream(BaseLiveStream):
 
     async def fetch_web_stream_data(self, url: str, process_data: bool = True) -> dict:
         """
-        Fetches web stream data for a live room.
+        Fetches web stream data for a live or recorded room.
 
         Args:
             url (str): The room URL.
@@ -85,14 +100,14 @@ class DouyuLiveStream(BaseLiveStream):
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
         """
-        match_rid = re.search('rid=(.*?)(?=&|$)', url)
+        match_rid = self._rid_pattern.search(url)
         if match_rid:
             rid = match_rid.group(1)
         else:
-            rid = re.search('douyu.com/(.*?)(?=\\?|$)', url).group(1)
+            rid = self._domain_pattern.search(url).group(1)
             html_str = await async_req(url=f'https://m.douyu.com/{rid}', proxy_addr=self.proxy_addr,
                                        headers=self.pc_headers)
-            json_str = re.findall('<script id="vike_pageContext" type="application/json">(.*?)</script>', html_str)[0]
+            json_str = self._vike_json_pattern.findall(html_str)[0]
             json_data = json.loads(json_str)
             rid = json_data['pageProps']['room']['roomInfo']['roomInfo']['rid']
 
@@ -110,16 +125,17 @@ class DouyuLiveStream(BaseLiveStream):
             result["title"] = json_data['room']['room_name'].replace('&nbsp;', '')
             result["is_live"] = True
             result["room_id"] = json_data['room']['room_id']
+        else:
+            result["room_id"] = json_data['room'].get('room_id')
+            result["title"] = json_data['room'].get('room_name', '').replace('&nbsp;', '')
         return result
 
     async def fetch_stream_url(self, json_data: dict, video_quality: str | int | None = None) -> StreamData:
         """
-        Fetches the stream URL for a live room and wraps it into a StreamData object.
+        Fetches the stream URL for a live or recorded room and wraps it into a StreamData object,
+        including backup CDN streams.
         """
         platform = '斗鱼直播'
-        if not json_data["is_live"]:
-            json_data |= {"platform": platform}
-            return wrap_stream(json_data)
         video_quality_options = {
             "OD": '0',
             "BD": '0',
@@ -140,11 +156,37 @@ class DouyuLiveStream(BaseLiveStream):
                 video_quality = video_quality.upper()
 
         rate = video_quality_options.get(video_quality, '0')
+        
         flv_data = await self._fetch_web_stream_url(rid=rid, rate=rate)
         rtmp_url = flv_data['data'].get('rtmp_url')
         rtmp_live = flv_data['data'].get('rtmp_live')
-        if rtmp_live:
-            flv_url = f'{rtmp_url}/{rtmp_live}'
-            json_data |= {"platform": platform, 'quality': video_quality, 'flv_url': flv_url, 'record_url': flv_url}
-        return wrap_stream(json_data)
+        
+        urls = []
+        if rtmp_url and rtmp_live:
+            urls.append(f'{rtmp_url}/{rtmp_live}')
 
+        cdns_with_name = flv_data.get('data', {}).get('cdnsWithName', [])
+        rtmp_cdn = flv_data.get('data', {}).get('rtmp_cdn')
+        
+        tasks = []
+        for item in cdns_with_name:
+            cdn = item.get('cdn')
+            if cdn and cdn != rtmp_cdn:
+                tasks.append(self._fetch_web_stream_url(rid=rid, rate=rate, cdn=cdn))
+        
+        if tasks:
+            results = await asyncio.gather(*tasks)
+            for backup_data in results:
+                backup_rtmp_url = backup_data.get('data', {}).get('rtmp_url')
+                backup_rtmp_live = backup_data.get('data', {}).get('rtmp_live')
+                if backup_rtmp_url and backup_rtmp_live:
+                    urls.append(f'{backup_rtmp_url}/{backup_rtmp_live}')
+
+        json_data |= {
+            "platform": platform,
+            "quality": video_quality,
+            "flv_url": urls[0] if urls else None,
+            "record_url": urls[1] if len(urls) > 1 else (urls[0] if urls else None)
+        }
+        
+        return wrap_stream(json_data)

@@ -19,8 +19,6 @@ class DouyuLiveStream(BaseLiveStream):
         super().__init__(proxy_addr, cookies)
         self.mobile_headers = self._get_mobile_headers()
         self.pc_headers = self._get_pc_headers()
-        self._cache = {}
-        self._cache_lock = asyncio.Lock()
 
     def _get_mobile_headers(self) -> dict:
         return {
@@ -44,12 +42,7 @@ class DouyuLiveStream(BaseLiveStream):
     def _get_md5(data) -> str:
         return hashlib.md5(data.encode('utf-8')).hexdigest()
 
-    async def _get_token_js(self, rid: str, did: str, cache_key: str = '') -> list[str]:
-        cache_key = f"{rid}_{int(time.time()) // 600}"
-        async with self._cache_lock:
-            if cache_key in self._cache:
-                return self._cache[cache_key]
-
+    async def _get_token_js(self, rid: str, did: str) -> list[str]:
         url = f'https://www.douyu.com/{rid}'
         for attempt in range(3):
             try:
@@ -76,10 +69,6 @@ class DouyuLiveStream(BaseLiveStream):
             js = execjs.compile(func_sign)
             params = js.call('sign', rid, did, t10)
             params_list = re.findall('=(.*?)(?=&|$)', params)
-            async with self._cache_lock:
-                self._cache[cache_key] = params_list
-                current_time = int(time.time()) // 600
-                self._cache = {k: v for k, v in self._cache.items() if k.endswith(f"_{current_time}")}
             return params_list
         except execjs.ProgramError:
             raise execjs.ProgramError('Failed to execute JS code. Please check if the Node.js environment')

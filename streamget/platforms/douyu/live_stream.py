@@ -3,6 +3,8 @@ import json
 import re
 import time
 import asyncio
+from functools import lru_cache
+from typing import Dict, List, Optional
 
 import execjs
 
@@ -19,17 +21,13 @@ class DouyuLiveStream(BaseLiveStream):
         super().__init__(proxy_addr, cookies)
         self.mobile_headers = self._get_mobile_headers()
         self.pc_headers = self._get_pc_headers()
-        self._rid_pattern = re.compile(r'rid=([^&]+)')
-        self._domain_pattern = re.compile(r'douyu\.com/([^/?]+)')
-        self._vike_json_pattern = re.compile(r'<script id="vike_pageContext" type="application/json">(.*?)</script>')
-        self._v_pattern = re.compile(r'v=(\d+)')
-        self._param_pattern = re.compile(r'=([^&]+)')
 
     def _get_mobile_headers(self) -> dict:
         return {
             'user-agent': 'ios/7.830 (ios 17.0; ; iPhone 15 (A2846/A3089/A3090/A3092))',
             'cookie': self.cookies or '',
             'referer': 'https://m.douyu.com/3125893?rid=3125893&dyshid=0-96003918aa5365bc6dcb4933000316p1&dyshci=181',
+            'accept-encoding': 'gzip, deflate, br',  # Enable compression
         }
 
     def _get_pc_headers(self) -> dict:
@@ -39,22 +37,32 @@ class DouyuLiveStream(BaseLiveStream):
                 '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             ),
             'cookie': self.cookies or '',
+            'accept-encoding': 'gzip, deflate, br',  # Enable compression
         }
 
     @staticmethod
     def _get_md5(data) -> str:
         return hashlib.md5(data.encode('utf-8')).hexdigest()
 
-    async def _get_token_js(self, rid: str, did: str) -> list[str]:
+    @lru_cache(maxsize=100)  # Cache JS for 10 minutes
+    async def _get_token_js(self, rid: str, did: str, cache_key: str = '') -> list[str]:
+        cache_key = f"{rid}_{int(time.time()) // 600}"  # TTL: 10 minutes
         url = f'https://www.douyu.com/{rid}'
-        html_str = await async_req(url=url, proxy_addr=self.proxy_addr)
+        for attempt in range(3):  # Retry logic
+            try:
+                html_str = await async_req(url=url, proxy_addr=self.proxy_addr, headers=self.pc_headers)
+                break
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
         result = re.search(r'(vdwdae325w_64we[\s\S]*function ub98484234[\s\S]*?)function', html_str).group(1)
         func_ub9 = re.sub(r'eval.*?;}', 'strc;}', result)
         js = execjs.compile(func_ub9)
         res = js.call('ub98484234')
 
         t10 = str(int(time.time()))
-        v = self._v_pattern.search(res).group(1)
+        v = re.search(r'v=(\d+)', res).group(1)
         rb = self._get_md5(str(rid) + str(did) + str(t10) + str(v))
 
         func_sign = re.sub(r'return rt;}\);?', 'return rt;}', res)
@@ -64,7 +72,7 @@ class DouyuLiveStream(BaseLiveStream):
         try:
             js = execjs.compile(func_sign)
             params = js.call('sign', rid, did, t10)
-            params_list = self._param_pattern.findall(params)
+            params_list = re.findall('=(.*?)(?=&|$)', params)
             return params_list
         except execjs.ProgramError:
             raise execjs.ProgramError('Failed to execute JS code. Please check if the Node.js environment')
@@ -85,9 +93,20 @@ class DouyuLiveStream(BaseLiveStream):
             data['cdn'] = cdn
 
         app_api = f'https://www.douyu.com/lapi/live/getH5Play/{rid}'
-        json_str = await async_req(url=app_api, proxy_addr=self.proxy_addr, headers=self.mobile_headers, data=data)
-        json_data = json.loads(json_str)
-        return json_data
+        for attempt in range(3):  # Retry logic
+            try:
+                json_str = await async_req(
+                    url=app_api,
+                    proxy_addr=self.proxy_addr,
+                    headers=self.mobile_headers,
+                    data=data
+                )
+                json_data = json.loads(json_str)
+                return json_data
+            except Exception as e:
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
     async def fetch_web_stream_data(self, url: str, process_data: bool = True) -> dict:
         """
@@ -100,14 +119,16 @@ class DouyuLiveStream(BaseLiveStream):
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
         """
-        match_rid = self._rid_pattern.search(url)
+        match_rid = re.search(r'(?:rid=(.*?)(?=&|$)|douyu\.com/(.*?)(?=\?|$))', url)
         if match_rid:
-            rid = match_rid.group(1)
+            rid = match_rid.group(1) or match_rid.group(2)
         else:
-            rid = self._domain_pattern.search(url).group(1)
+            raise ValueError("Invalid URL: Unable to extract room ID")
+        
+        if not match_rid.group(1):
             html_str = await async_req(url=f'https://m.douyu.com/{rid}', proxy_addr=self.proxy_addr,
                                        headers=self.pc_headers)
-            json_str = self._vike_json_pattern.findall(html_str)[0]
+            json_str = re.findall('<script id="vike_pageContext" type="application/json">(.*?)</script>', html_str)[0]
             json_data = json.loads(json_str)
             rid = json_data['pageProps']['room']['roomInfo']['roomInfo']['rid']
 
@@ -157,6 +178,7 @@ class DouyuLiveStream(BaseLiveStream):
 
         rate = video_quality_options.get(video_quality, '0')
         
+        # Fetch main stream
         flv_data = await self._fetch_web_stream_url(rid=rid, rate=rate)
         rtmp_url = flv_data['data'].get('rtmp_url')
         rtmp_live = flv_data['data'].get('rtmp_live')
@@ -165,18 +187,16 @@ class DouyuLiveStream(BaseLiveStream):
         if rtmp_url and rtmp_live:
             urls.append(f'{rtmp_url}/{rtmp_live}')
 
+        # Fetch backup CDNs concurrently
         cdns_with_name = flv_data.get('data', {}).get('cdnsWithName', [])
         rtmp_cdn = flv_data.get('data', {}).get('rtmp_cdn')
-        
-        tasks = []
-        for item in cdns_with_name:
-            cdn = item.get('cdn')
-            if cdn and cdn != rtmp_cdn:
-                tasks.append(self._fetch_web_stream_url(rid=rid, rate=rate, cdn=cdn))
-        
-        if tasks:
-            results = await asyncio.gather(*tasks)
-            for backup_data in results:
+        tasks = [
+            self._fetch_web_stream_url(rid=rid, rate=rate, cdn=item['cdn'])
+            for item in cdns_with_name if item.get('cdn') and item['cdn'] != rtmp_cdn
+        ]
+        backup_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for backup_data in backup_results:
+            if isinstance(backup_data, dict):
                 backup_rtmp_url = backup_data.get('data', {}).get('rtmp_url')
                 backup_rtmp_live = backup_data.get('data', {}).get('rtmp_live')
                 if backup_rtmp_url and backup_rtmp_live:

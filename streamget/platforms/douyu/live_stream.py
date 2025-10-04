@@ -5,7 +5,6 @@ import re
 import time
 
 import execjs
-from typing import Optional
 
 from ...data import StreamData, wrap_stream
 from ...requests.async_http import async_req

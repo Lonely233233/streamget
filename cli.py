@@ -153,10 +153,22 @@ class OutputFormatter:
     @staticmethod
     def format_response(json_data: str, platform: str, room_id: str) -> bytes:
         data = json.loads(json_data)
-        urls = [
-            {"url": data[key]} for key in OutputFormatter.URL_KEYS 
-            if key in data and data[key]
-        ]
+        urls = []
+        seen = set()
+
+        for key in OutputFormatter.URL_KEYS:
+            if key in data and data[key] and data[key] not in seen:
+                urls.append({"url": data[key]})
+                seen.add(data[key])
+
+        extra = data.get("extra", {})
+        if isinstance(extra, dict):
+            backup_list = extra.get("backup_url_list", [])
+            if isinstance(backup_list, list):
+                for url in backup_list:
+                    if isinstance(url, str) and url and url not in seen:
+                        urls.append({"url": url})
+                        seen.add(url)
 
         return json.dumps({
             "platform": platform.lower(),

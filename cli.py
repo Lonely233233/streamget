@@ -156,6 +156,8 @@ class OutputFormatter:
         urls = []
         seen = set()
 
+        platform_name = data.get("platform", platform)
+        
         for key in OutputFormatter.URL_KEYS:
             if key in data and data[key] and data[key] not in seen:
                 urls.append({"url": data[key]})
@@ -171,7 +173,7 @@ class OutputFormatter:
                         seen.add(url)
 
         return json.dumps({
-            "platform": platform.lower(),
+            "platform": platform_name,
             "rid": room_id,
             "title": data.get("title", ""),
             "anchor": data.get("anchor_name", ""),

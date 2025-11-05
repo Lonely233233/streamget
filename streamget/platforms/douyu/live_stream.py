@@ -109,7 +109,7 @@ class DouyuLiveStream(BaseLiveStream):
             "is_live": False,
             "live_url": url,
             "room_id": json_data['room']['room_id'],
-            "title": json_data['room']['room_name'].replace('&nbsp;', '')
+            "title": json_data['room']['room_name'].replace('&nbsp;', ''),
         }
         result["is_live"] = json_data['room']['videoLoop'] == 0 and json_data['room']['show_status'] == 1
         if result["is_live"]:

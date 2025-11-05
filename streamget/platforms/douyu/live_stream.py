@@ -107,12 +107,13 @@ class DouyuLiveStream(BaseLiveStream):
         result = {
             "anchor_name": json_data['room']['nickname'],
             "is_live": False,
-            "live_url": url
+            "live_url": url,
+            "room_id": json_data['room']['room_id'],
+            "title": json_data['room']['room_name'].replace('&nbsp;', '')
         }
-        if json_data['room']['videoLoop'] == 0 and json_data['room']['show_status'] == 1:
-            result["title"] = json_data['room']['room_name'].replace('&nbsp;', '')
+        result["is_live"] = json_data['room']['videoLoop'] == 0 and json_data['room']['show_status'] == 1
+        if result["is_live"]:
             result["is_live"] = True
-            result["room_id"] = json_data['room']['room_id']
         return result
 
     async def fetch_stream_url(
@@ -121,9 +122,6 @@ class DouyuLiveStream(BaseLiveStream):
         Fetches the stream URL for a live room and wraps it into a StreamData object.
         """
         platform = '斗鱼直播'
-        if not json_data["is_live"]:
-            json_data |= {"platform": platform}
-            return wrap_stream(json_data)
         video_quality_options = {
             "OD": '0',
             "BD": '0',

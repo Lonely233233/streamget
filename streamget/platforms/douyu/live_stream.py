@@ -104,16 +104,18 @@ class DouyuLiveStream(BaseLiveStream):
         json_data = json.loads(json_str)
         if not process_data:
             return json_data
+
+        raw_title = json_data['room']['room_name'].replace('&nbsp;', '')
+        is_live = json_data['room']['videoLoop'] == 0 and json_data['room']['show_status'] == 1
+        title = f"录播 {raw_title}" if not is_live else raw_title
+
         result = {
             "anchor_name": json_data['room']['nickname'],
-            "is_live": False,
+            "is_live": is_live,
             "live_url": url,
             "room_id": json_data['room']['room_id'],
-            "title": json_data['room']['room_name'].replace('&nbsp;', ''),
+            "title": title,
         }
-        result["is_live"] = json_data['room']['videoLoop'] == 0 and json_data['room']['show_status'] == 1
-        if result["is_live"]:
-            result["is_live"] = True
         return result
 
     async def fetch_stream_url(

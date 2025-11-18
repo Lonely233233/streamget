@@ -55,7 +55,6 @@ class DouyuLiveStream(BaseLiveStream):
             raise execjs.ProgramError('Failed to execute JS code. Please check if the Node.js environment')
 
     async def _fetch_web_stream_url(self, rid: str, rate: str = '-1', cdn: str | None = None) -> dict:
-
         did = '10000000000000000000000000003306'
         params_list = await self._get_token_js(rid, did)
         data = {
@@ -148,18 +147,23 @@ class DouyuLiveStream(BaseLiveStream):
 
         async def get_url(rid: str, rate: str, cdn: str | None = None):
             flv_data = await self._fetch_web_stream_url(rid=rid, rate=rate, cdn=cdn)
+            if not flv_data.get('data'):
+                return
             rtmp_url = flv_data['data'].get('rtmp_url')
             rtmp_live = flv_data['data'].get('rtmp_live')
-            flv_url_list.append(f'{rtmp_url}/{rtmp_live}')
+            if rtmp_url and rtmp_live:
+                flv_url_list.append(f'{rtmp_url}/{rtmp_live}')
             return flv_data
 
         flv_data = await get_url(rid=rid, rate=rate, cdn=cdn)
-        rtmp_cdn = flv_data['data'].get('rtmp_cdn')
-        cdn_list = flv_data['data'].get('cdnsWithName')
 
-        for cdn in cdn_list:
-            if cdn['cdn'] != rtmp_cdn:
-                await get_url(rid=rid, rate=rate, cdn=cdn['cdn'])
+        if flv_data and flv_data.get('data'):
+            rtmp_cdn = flv_data['data'].get('rtmp_cdn')
+            cdn_list = flv_data['data'].get('cdnsWithName')
+
+            for cdn in cdn_list:
+                if cdn['cdn'] != rtmp_cdn:
+                    await get_url(rid=rid, rate=rate, cdn=cdn['cdn'])
 
         if flv_url_list:
             flv_url = flv_url_list[0]
@@ -171,4 +175,13 @@ class DouyuLiveStream(BaseLiveStream):
                 'record_url': flv_url,
                 'extra': {'backup_url_list': flv_url_list}
             }
+        else:
+            json_data |= {
+                "platform": platform,
+                'quality': video_quality,
+                'flv_url': '',
+                'record_url': '',
+                'extra': {}
+            }
+
         return wrap_stream(json_data)

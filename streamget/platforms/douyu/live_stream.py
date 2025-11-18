@@ -175,13 +175,5 @@ class DouyuLiveStream(BaseLiveStream):
                 'record_url': flv_url,
                 'extra': {'backup_url_list': flv_url_list}
             }
-        else:
-            json_data |= {
-                "platform": platform,
-                'quality': video_quality,
-                'flv_url': '',
-                'record_url': '',
-                'extra': {}
-            }
 
         return wrap_stream(json_data)

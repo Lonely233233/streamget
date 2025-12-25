@@ -1,5 +1,4 @@
 import hashlib
-import random
 import re
 import time
 
@@ -18,25 +17,13 @@ class DouyuLiveStream(BaseLiveStream):
     PLAY_DOMAIN = "playweb.douyucdn.cn"
     MOBILE_DOMAIN = "m.douyu.com"
 
-    ALL_CDNS = ["hs-h5", "hw-h5", "tct-h5", "akm-h5", "ws-h5"]
+    ALL_CDNS = ["hw-h5", "tct-h5", "akm-h5", "ws-h5"]
 
     def __init__(self, proxy_addr: str | None = None, cookies: str | None = None):
         super().__init__(proxy_addr, cookies)
         self.client: httpx.AsyncClient | None = None
         self.white_encrypt_key: dict = {}
-        self.user_agent = self._random_ua()
-
-    @staticmethod
-    def _random_ua() -> str:
-        uas = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        ]
-        return random.choice(uas)
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self.client is None:
@@ -47,7 +34,6 @@ class DouyuLiveStream(BaseLiveStream):
     async def _update_white_key(self) -> bool:
         try:
             client = await self._get_client()
-            self.user_agent = self._random_ua()
             resp = await client.get(
                 f"https://{self.WEB_DOMAIN}/wgapi/livenc/liveweb/websec/getEncryption",
                 params={"did": self.DEFAULT_DID},
@@ -230,7 +216,7 @@ class DouyuLiveStream(BaseLiveStream):
             if result:
                 url = result["url"]
                 if url not in success_urls + backup_urls:
-                    if cdn_name == "hs-h5":
+                    if cdn_name == "hw-h5":
                         success_urls.insert(0, url)
                     else:
                         backup_urls.append(url)

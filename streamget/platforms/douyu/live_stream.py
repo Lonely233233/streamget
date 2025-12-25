@@ -5,8 +5,8 @@ import time
 
 import httpx
 
-from ..base import BaseLiveStream
 from ...data import StreamData, wrap_stream
+from ..base import BaseLiveStream
 
 
 class DouyuLiveStream(BaseLiveStream):

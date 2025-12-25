@@ -1,13 +1,11 @@
 import hashlib
-import json
 import re
 import time
-import asyncio
 
 import httpx
+import random
 
 from ...data import StreamData, wrap_stream
-from ...requests.async_http import async_req
 from ..base import BaseLiveStream
 
 
@@ -30,11 +28,13 @@ class DouyuLiveStream(BaseLiveStream):
 
     @staticmethod
     def _random_ua() -> str:
-        import random
         uas = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         ]
         return random.choice(uas)
 
@@ -64,7 +64,10 @@ class DouyuLiveStream(BaseLiveStream):
             return False
 
     async def _is_key_valid(self) -> bool:
-        return bool(self.white_encrypt_key) and self.white_encrypt_key.get("cpp", {}).get("expire_at", 0) > int(time.time())
+        return (
+            bool(self.white_encrypt_key)
+            and self.white_encrypt_key.get("cpp", {}).get("expire_at", 0) > int(time.time())
+        )
 
     async def _get_sign(self, rid: str) -> dict:
         for _ in range(3):

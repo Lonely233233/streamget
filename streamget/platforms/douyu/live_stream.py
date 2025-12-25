@@ -1,12 +1,12 @@
 import hashlib
+import random
 import re
 import time
 
 import httpx
-import random
 
-from ...data import StreamData, wrap_stream
 from ..base import BaseLiveStream
+from ...data import StreamData, wrap_stream
 
 
 class DouyuLiveStream(BaseLiveStream):

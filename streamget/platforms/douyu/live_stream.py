@@ -1,6 +1,7 @@
 import hashlib
 import re
 import time
+import asyncio
 
 import httpx
 
@@ -16,8 +17,6 @@ class DouyuLiveStream(BaseLiveStream):
     WEB_DOMAIN = "www.douyu.com"
     PLAY_DOMAIN = "playweb.douyucdn.cn"
     MOBILE_DOMAIN = "m.douyu.com"
-
-    ALL_CDNS = ["hw-h5", "tct-h5", "akm-h5", "ws-h5"]
 
     def __init__(self, proxy_addr: str | None = None, cookies: str | None = None):
         super().__init__(proxy_addr, cookies)
@@ -82,66 +81,6 @@ class DouyuLiveStream(BaseLiveStream):
         key_data = {k: v for k, v in self.white_encrypt_key.items() if k != "cpp"}
 
         return {"key": key_data, "auth": auth, "ts": ts}
-
-    async def _fetch_stream_for_cdn(self, rid: str, rate: str, cdn: str) -> dict | None:
-        client = await self._get_client()
-        headers = {
-            "Referer": f"https://{self.WEB_DOMAIN}/",
-            "Origin": f"https://{self.WEB_DOMAIN}",
-            "User-Agent": self.user_agent,
-        }
-
-        base_params = {
-            "rate": rate,
-            "ver": "219032101",
-            "iar": "0",
-            "ive": "0",
-            "rid": rid,
-            "hevc": "0",
-            "fa": "0",
-            "sov": "0",
-            "cdn": cdn,
-        }
-
-        for attempt in range(3):
-            try:
-                sign_data = await self._get_sign(rid)
-                params = base_params.copy()
-                params.update({
-                    "enc_data": sign_data["key"]["enc_data"],
-                    "tt": sign_data["ts"],
-                    "did": self.DEFAULT_DID,
-                    "auth": sign_data["auth"],
-                })
-
-                url = f"https://{self.PLAY_DOMAIN}/lapi/live/getH5PlayV1/{rid}"
-                resp = await client.post(url, headers=headers, params=params, data=params)
-                resp.raise_for_status()
-                data = resp.json()
-
-                if data.get("error") != 0:
-                    raise ValueError(data.get("msg", "API error"))
-
-                play_info = data["data"]
-                raw_url = f"{play_info['rtmp_url']}/{play_info['rtmp_live']}"
-
-                extra_headers = {}
-
-                return {
-                    "cdn": cdn,
-                    "url": raw_url,
-                    "extra_headers": extra_headers,
-                    "raw_data": play_info
-                }
-
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 403:
-                    await self._update_white_key()
-                else:
-                    break
-            except Exception:
-                break
-        return None
 
     async def fetch_web_stream_data(self, url: str, process_data: bool = True) -> dict:
         """
@@ -210,30 +149,105 @@ class DouyuLiveStream(BaseLiveStream):
 
         rate = video_quality_options.get(video_quality, '0')
 
-        cdns_to_try = [cdn] if cdn else self.ALL_CDNS
-        success_urls = []
-        backup_urls = []
+        client = await self._get_client()
+        headers = {
+            "Referer": f"https://{self.WEB_DOMAIN}/",
+            "Origin": f"https://{self.WEB_DOMAIN}",
+            "User-Agent": self.user_agent,
+        }
 
-        for cdn_name in cdns_to_try:
-            result = await self._fetch_stream_for_cdn(rid, rate, cdn_name)
-            if result:
-                url = result["url"]
-                if url not in success_urls + backup_urls:
-                    if cdn_name == "hw-h5":
-                        success_urls.insert(0, url)
+        base_params = {
+            "rate": rate,
+            "ver": "219032101",
+            "iar": "0",
+            "ive": "0",
+            "rid": rid,
+            "hevc": "0",
+            "fa": "0",
+            "sov": "0",
+        }
+
+        flv_url_list = []
+
+        async def fetch_for_cdn(cdn_name: str | None = None):
+            current_params = base_params.copy()
+            if cdn_name:
+                current_params["cdn"] = cdn_name
+
+            for attempt in range(3):
+                try:
+                    sign_data = await self._get_sign(rid)
+                    params = current_params.copy()
+                    params.update({
+                        "enc_data": sign_data["key"]["enc_data"],
+                        "tt": sign_data["ts"],
+                        "did": self.DEFAULT_DID,
+                        "auth": sign_data["auth"],
+                    })
+
+                    url = f"https://{self.PLAY_DOMAIN}/lapi/live/getH5PlayV1/{rid}"
+                    resp = await client.post(url, headers=headers, params=params, data=params)
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    if data.get("error") != 0:
+                        raise ValueError(data.get("msg", "API error"))
+
+                    play_info = data["data"]
+                    raw_url = f"{play_info['rtmp_url']}/{play_info['rtmp_live']}"
+
+                    if raw_url not in flv_url_list:
+                        flv_url_list.append(raw_url)
+
+                    return play_info
+
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 403:
+                        await self._update_white_key()
                     else:
-                        backup_urls.append(url)
+                        break
+                except Exception:
+                    break
+            return None
 
-        all_success = success_urls + backup_urls
-        flv_url = all_success[0] if all_success else None
-        remaining_backup = all_success[1:] if len(all_success) > 1 else []
+        main_play_info = await fetch_for_cdn(None)
+
+        if not main_play_info:
+            if self.client:
+                await self.client.aclose()
+            json_data |= {
+                "platform": platform,
+                'quality': video_quality,
+                'flv_url': None,
+                'record_url': None,
+                'extra': {'backup_url_list': []}
+            }
+            return wrap_stream(json_data)
+
+        if cdn and main_play_info.get('rtmp_cdn') != cdn:
+            await fetch_for_cdn(cdn)
+
+        cdns_with_name = main_play_info.get('cdnsWithName', [])
+        default_cdn = main_play_info.get('rtmp_cdn')
+
+        other_cdn_tasks = [
+            fetch_for_cdn(item['cdn'])
+            for item in cdns_with_name
+            if item['cdn'] != default_cdn and (cdn is None or item['cdn'] != cdn)
+        ]
+
+        if other_cdn_tasks:
+            await asyncio.gather(*other_cdn_tasks, return_exceptions=True)
+
+        main_url = flv_url_list[0]
+        backup_urls = flv_url_list[1:] if len(flv_url_list) > 1 else []
 
         json_data |= {
             "platform": platform,
             'quality': video_quality,
-            'flv_url': flv_url,
-            'record_url': flv_url,
-            'extra': {'backup_url_list': remaining_backup}
+            'flv_url': main_url,
+            'record_url': main_url,
+            'extra': {'backup_url_list': backup_urls}
         }
 
         if self.client:

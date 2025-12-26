@@ -63,6 +63,7 @@ class StreamGetPackager:
             'inspect',
             'typing',
             'importlib',
+            'deprecated',
             'streamget.DouyinLiveStream',
             'streamget.TikTokLiveStream',
             'streamget.KwaiLiveStream',
@@ -140,4 +141,5 @@ class StreamGetPackager:
 
 if __name__ == "__main__":
     packager = StreamGetPackager()
+
     packager.main()

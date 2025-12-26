@@ -73,8 +73,10 @@ class DouyuLiveStream(BaseLiveStream):
             return json_data
 
         raw_title = json_data['room_name'].replace('&nbsp;', ' ')
-        is_live = json_data['show_status'] == 1 and json_data['videoLoop'] == 0
-        title = f"录播 {raw_title}" if not is_live else raw_title
+        has_content = json_data['show_status'] == 1
+        is_loop = json_data['videoLoop'] == 1
+        is_live = has_content
+        title = f"【轮播】{raw_title}" if is_loop else raw_title
 
         result = {
             "anchor_name": json_data['nickname'],

@@ -1,7 +1,7 @@
+import asyncio
 import hashlib
 import re
 import time
-import asyncio
 
 import httpx
 

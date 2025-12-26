@@ -101,8 +101,6 @@ class HuyaLiveStream(BaseLiveStream):
             stream_name = i["sStreamName"]
             s_flv_url = i["sFlvUrl"]
             flv_anti_code = i["sFlvAntiCode"]
-            s_hls_url = i["sHlsUrl"]
-            hls_anti_code = i["sHlsAntiCode"]
 
             # FLV anti-code processing
             qr = urllib.parse.parse_qs(flv_anti_code)
@@ -136,44 +134,10 @@ class HuyaLiveStream(BaseLiveStream):
             ]
             flv_qs = "&".join(p for p in flv_params if p.split("=", 1)[1])
 
-            # HLS anti-code processing
-            hls_qr = urllib.parse.parse_qs(hls_anti_code)
-            hls_ws_time = hls_qr.get("wsTime", [""])[0]
-            hls_fm_b64 = hls_qr.get("fm", [""])[0]
-            hls_fm_b64 += "=" * (-len(hls_fm_b64) % 4)
-            try:
-                hls_fm_raw = base64.b64decode(hls_fm_b64).decode("utf-8")
-            except Exception:
-                hls_fm_raw = ""
-            hls_fm = (
-                hls_fm_raw.replace("$0", str(uid))
-                .replace("$1", stream_name)
-                .replace("$2", f)
-                .replace("$3", hls_ws_time)
-            )
-            hls_ws_secret = hashlib.md5(hls_fm.encode("utf-8")).hexdigest()
-
-            hls_params = [
-                f"wsSecret={hls_ws_secret}",
-                f"wsTime={hls_ws_time}",
-                f"u={uid}",
-                f"seqid={f}",
-                f"txyp={hls_qr.get('txyp', [''])[0]}",
-                f"fs={hls_qr.get('fs', [''])[0]}",
-                f"sphdcdn={hls_qr.get('sphdcdn', [''])[0]}",
-                f"sphdDC={hls_qr.get('sphdDC', [''])[0]}",
-                f"sphd={hls_qr.get('sphd', [''])[0]}",
-                f"exsphd={hls_qr.get('exsphd', [''])[0]}",
-                "ratio=0",
-            ]
-            hls_qs = "&".join(p for p in hls_params if p.split("=", 1)[1])
-
-            m3u8_url = f"{s_hls_url}/{stream_name}.m3u8?{hls_qs}".replace("http://", "https://")
             flv_url = f"{s_flv_url}/{stream_name}.flv?{flv_qs}".replace("http://", "https://")
 
             play_url_list.append({
                 "cdn_type": cdn_type,
-                "m3u8_url": m3u8_url,
                 "flv_url": flv_url,
             })
             if flv_url not in all_flv_urls:
@@ -187,7 +151,6 @@ class HuyaLiveStream(BaseLiveStream):
                 break
         select_item = select_item or play_url_list[0]
 
-        m3u8_url = select_item.get("m3u8_url")
         flv_url = select_item.get("flv_url")
 
         if flv_url in all_flv_urls:
@@ -196,9 +159,8 @@ class HuyaLiveStream(BaseLiveStream):
         return {
             "anchor_name": anchor_name,
             "is_live": True,
-            "m3u8_url": m3u8_url,
             "flv_url": flv_url,
-            "record_url": flv_url or m3u8_url,
+            "record_url": flv_url,
             "title": live_title,
             "live_url": live_url,
             "extra": {

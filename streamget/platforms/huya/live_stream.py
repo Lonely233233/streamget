@@ -19,13 +19,15 @@ class HuyaLiveStream(BaseLiveStream):
     def __init__(self, proxy_addr: str | None = None, cookies: str | None = None):
         super().__init__(proxy_addr, cookies)
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/127.0.0.0 Safari/537.36"
-            ),
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/127.0.0.0 Safari/537.36"
+                ),
+            }
+        )
         if proxy_addr:
             self.session.proxies.update({"http": proxy_addr, "https": proxy_addr})
 
@@ -38,15 +40,40 @@ class HuyaLiveStream(BaseLiveStream):
         Fetch live stream data using the mini-program API and generate real URLs
         with the latest anti-leech method (valid as of late 2025).
         """
-        room_id = url.split("?")[0].rsplit("/", maxsplit=1)[-1]
+        room_id = url.split("?")[0].rsplit("/", maxsplit=1)[-1].strip("/")
 
-        # Handle alphabetic room IDs (e.g., https://www.huya.com/xxxxxx)
-        if any(char.isalpha() for char in room_id):
-            html_str = self.session.get(url, timeout=15).text
-            match = re.search(r'ProfileRoom":(\d+),"sPrivateHost', html_str)
-            if not match:
-                raise Exception("Please use \"https://www.huya.com/+room_number\" for recording")
-            room_id = match.group(1)
+        if not room_id.isdigit():
+            try:
+                resp = self.session.get(url, timeout=15)
+                resp.raise_for_status()
+                html_str = resp.text
+
+                match = re.search(
+                    r'<link\s+[^>]*rel=["\']canonical["\'][^>]*href=["\']https?://www\.huya\.com/(\d+)["\']',
+                    html_str,
+                    re.I,
+                )
+                if match:
+                    room_id = match.group(1)
+                else:
+                    match = re.search(
+                        r'<meta\s+[^>]*property=["\']og:url["\'][^>]*content=["\']https?://www\.huya\.com/(\d+)["\']',
+                        html_str,
+                        re.I,
+                    )
+                    if match:
+                        room_id = match.group(1)
+                    else:
+                        match = re.search(r'"lProfileRoom"\s*:\s*(\d+)', html_str)
+                        if match:
+                            room_id = match.group(1)
+                        else:
+                            raise Exception(
+                                "无法解析别名房间号，请检查网址是否正确或尝试使用数字房间号"
+                            )
+
+            except requests.RequestException as e:
+                raise Exception(f"获取房间页面失败: {e}")
 
         live_url = "https://www.huya.com/" + str(room_id)
 
@@ -136,10 +163,12 @@ class HuyaLiveStream(BaseLiveStream):
 
             flv_url = f"{s_flv_url}/{stream_name}.flv?{flv_qs}".replace("http://", "https://")
 
-            play_url_list.append({
-                "cdn_type": cdn_type,
-                "flv_url": flv_url,
-            })
+            play_url_list.append(
+                {
+                    "cdn_type": cdn_type,
+                    "flv_url": flv_url,
+                }
+            )
             if flv_url not in all_flv_urls:
                 all_flv_urls.append(flv_url)
 

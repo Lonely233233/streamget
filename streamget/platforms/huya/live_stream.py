@@ -51,7 +51,7 @@ class HuyaLiveStream(BaseLiveStream):
                 match = re.search(
                     r'<link\s+[^>]*rel=["\']canonical["\'][^>]*href=["\']https?://www\.huya\.com/(\d+)["\']',
                     html_str,
-                    re.I,
+                    re.IGNORECASE,
                 )
                 if match:
                     room_id = match.group(1)
@@ -59,7 +59,7 @@ class HuyaLiveStream(BaseLiveStream):
                     match = re.search(
                         r'<meta\s+[^>]*property=["\']og:url["\'][^>]*content=["\']https?://www\.huya\.com/(\d+)["\']',
                         html_str,
-                        re.I,
+                        re.IGNORECASE,
                     )
                     if match:
                         room_id = match.group(1)

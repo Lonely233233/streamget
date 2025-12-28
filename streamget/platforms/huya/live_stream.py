@@ -101,7 +101,36 @@ class HuyaLiveStream(BaseLiveStream):
                 "live_url": live_url,
             }
 
-        # Obtain anonymous uid (required for current anti-leech)
+        return {
+            "raw_data": json_data,
+            "anchor_name": anchor_name,
+            "title": live_title,
+            "live_url": live_url,
+        }
+
+    @staticmethod
+    async def fetch_stream_url(json_data: dict, video_quality: str | int | None = None) -> StreamData:
+        """
+         Fetches the stream URL for a live room and wraps it into a StreamData object.
+         """
+        platform = "虎牙直播"
+
+        if "raw_data" not in json_data:
+            result = {
+                "platform": platform,
+                "anchor_name": json_data.get("anchor_name", ""),
+                "is_live": False,
+                "live_url": json_data.get("live_url", ""),
+            }
+            if video_quality:
+                result["quality"] = video_quality
+            return wrap_stream(result)
+
+        raw_data = json_data["raw_data"]
+        anchor_name = json_data["anchor_name"]
+        live_title = json_data["title"]
+        live_url = json_data["live_url"]
+
         payload = {
             "appId": 5002,
             "byPass": 3,
@@ -109,7 +138,7 @@ class HuyaLiveStream(BaseLiveStream):
             "version": "2.4",
             "data": {},
         }
-        uid_resp = self.session.post(
+        uid_resp = requests.post(
             "https://udblgn.huya.com/web/anonymousLogin",
             json=payload,
             headers={"Content-Type": "application/json"},
@@ -117,11 +146,37 @@ class HuyaLiveStream(BaseLiveStream):
         ).text
         uid = json.loads(uid_resp)["data"]["uid"]
 
-        base_steam_info_list = json_data["data"]["stream"]["baseSteamInfoList"]
+        base_steam_info_list = raw_data["data"]["stream"]["baseSteamInfoList"]
         play_url_list = []
         all_flv_urls = []
 
-        f = str(int(time.time() * 10000))  # seqid
+        f = str(int(time.time() * 10000))
+
+        quality_list = ["OD", "UHD", "HD", "SD", "LD"]
+
+        if not video_quality:
+            video_quality = "OD"
+        else:
+            if str(video_quality).isdigit():
+                try:
+                    video_quality = quality_list[int(video_quality)]
+                except IndexError:
+                    video_quality = "OD"
+            else:
+                video_quality = video_quality.upper()
+
+        if video_quality == "OD":
+            target_ratio = "0"
+        elif video_quality == "UHD":
+            target_ratio = "8000"
+        elif video_quality == "HD":
+            target_ratio = "4000"
+        elif video_quality == "SD":
+            target_ratio = "2000"
+        elif video_quality == "LD":
+            target_ratio = "500"
+        else:
+            target_ratio = "0"
 
         for i in base_steam_info_list:
             cdn_type = i["sCdnType"]
@@ -129,7 +184,6 @@ class HuyaLiveStream(BaseLiveStream):
             s_flv_url = i["sFlvUrl"]
             flv_anti_code = i["sFlvAntiCode"]
 
-            # FLV anti-code processing
             qr = urllib.parse.parse_qs(flv_anti_code)
             ws_time = qr.get("wsTime", [""])[0]
             fm_b64 = qr.get("fm", [""])[0]
@@ -157,7 +211,7 @@ class HuyaLiveStream(BaseLiveStream):
                 f"sphdDC={qr.get('sphdDC', [''])[0]}",
                 f"sphd={qr.get('sphd', [''])[0]}",
                 f"exsphd={qr.get('exsphd', [''])[0]}",
-                "ratio=0",
+                f"ratio={target_ratio}",
             ]
             flv_qs = "&".join(p for p in flv_params if p.split("=", 1)[1])
 
@@ -177,23 +231,17 @@ class HuyaLiveStream(BaseLiveStream):
         if flv_url in all_flv_urls:
             all_flv_urls.remove(flv_url)
 
-        return {
+        result = {
+            "platform": platform,
             "anchor_name": anchor_name,
             "is_live": True,
             "flv_url": flv_url,
             "record_url": flv_url,
             "title": live_title,
             "live_url": live_url,
+            "quality": video_quality,
             "extra": {
                 "backup_url_list": all_flv_urls,
             },
         }
-
-    @staticmethod
-    async def fetch_stream_url(json_data: dict, video_quality: str | int | None = None) -> StreamData:
-        """Wrap result for compatibility."""
-        platform = "虎牙直播"
-        if "is_live" in json_data:
-            json_data |= {"platform": platform, "quality": video_quality}
-            return wrap_stream(json_data)
-        return wrap_stream({"platform": platform})
+        return wrap_stream(result)

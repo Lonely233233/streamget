@@ -172,15 +172,7 @@ class HuyaLiveStream(BaseLiveStream):
             if flv_url not in all_flv_urls:
                 all_flv_urls.append(flv_url)
 
-        # Prefer TX CDN
-        select_item = None
-        for item in play_url_list:
-            if item["cdn_type"] == "TX":
-                select_item = item
-                break
-        select_item = select_item or play_url_list[0]
-
-        flv_url = select_item.get("flv_url")
+        flv_url = play_url_list[0]["flv_url"] if play_url_list else ""
 
         if flv_url in all_flv_urls:
             all_flv_urls.remove(flv_url)

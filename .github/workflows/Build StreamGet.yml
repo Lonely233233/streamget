@@ -1,4 +1,4 @@
-name: Build StreamGet
+name: Build StreamGetGui
 
 permissions:
   contents: write
@@ -59,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v_cli.${{ needs.create_release.outputs.version }}
-          name: StreamGet CLI ${{ needs.create_release.outputs.version }}
+          name: StreamGet Gui ${{ needs.create_release.outputs.version }}
           files: dist/StreamGetGUI.exe
           draft: false
           prerelease: false

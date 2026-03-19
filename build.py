@@ -92,7 +92,6 @@ class StreamGetPackager:
             'streamget.AcfunLiveStream',
             'streamget.InkeLiveStream',
             'streamget.YinboLiveStream',
-            'streamget.HuajiaoLiveStream',
             'streamget.ChzzkLiveStream',
             'streamget.HaixiuLiveStream',
             'streamget.VVXQLiveStream',

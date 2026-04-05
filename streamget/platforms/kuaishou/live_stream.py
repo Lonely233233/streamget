@@ -14,6 +14,28 @@ class KwaiLiveStream(BaseLiveStream):
         super().__init__(proxy_addr, cookies)
         self.pc_headers = self._get_pc_headers()
 
+    def _get_pc_headers(self) -> dict:
+        return {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0',
+            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+            'referer': 'https://live.kuaishou.com/profile/cym030000'
+        }
+
+    async def get_user_info(self, url: str):
+        uid = url.split('https://live.kuaishou.com/u/')[-1]
+        api = 'https://live.kuaishou.com/live_api/baseuser/userinfo/byid?__NS_hxfalcon=&caver=2&principalId=' + uid
+        headers = self.pc_headers | {'cookie': self.cookies}
+        json_str = await async_req(api, proxy_addr=self.proxy_addr, headers=headers)
+        json_data = json.loads(json_str)
+        result = json_data['data']['result']
+        user_info = json_data['data']['userInfo']
+        name = user_info.get('name')
+        if result == 2 and name:
+            raise RuntimeError("The account is abnormal, triggering risk control")
+        status = user_info['living']
+        return name, status
+
     async def fetch_web_stream_data(self, url: str, process_data: bool = True) -> dict | None:
         """
         Fetches web stream data for a live room.
@@ -25,7 +47,12 @@ class KwaiLiveStream(BaseLiveStream):
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
         """
+
         try:
+            if self.cookies.strip() != '':
+                name, status = await self.get_user_info(url)
+                if not status:
+                    return {'anchor_name': name, 'is_live': status, 'live_url': url, 'type': 2}
             html_str = await async_req(url=url, proxy_addr=self.proxy_addr, headers=self.pc_headers)
         except Exception as e:
             raise Exception(f"Failed to fetch data from {url}.{e}")

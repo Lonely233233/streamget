@@ -123,7 +123,8 @@ class BaseLiveStream:
             "platform": platform,
             "anchor_name": json_data.get('anchor_name'),
             "is_live": True,
-            "live_url": json_data.get('live_url')
+            "live_url": json_data.get('live_url'),
+            "new_cookies": json_data.get('new_cookies')
         }
 
         def get_url(key):

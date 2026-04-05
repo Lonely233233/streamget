@@ -69,7 +69,7 @@ class DouyinLiveStream(BaseLiveStream):
         sorted_streams = sorted(streams, key=lambda x: x["bitrate"], reverse=True)
         return sorted_streams
 
-    async def _get_web_stream_data(self, web_rid: str, process_data: bool = True):
+    async def _get_web_stream_data(self, web_rid: str, process_data: bool = True, stream_orientation: int | None = 1):
 
         headers = {
             'referer': 'https://live.douyin.com/335354047186',
@@ -118,9 +118,10 @@ class DouyinLiveStream(BaseLiveStream):
 
             if room_data.get('status') == 4:
                 return room_data
-            stream_orientation = room_data['stream_url']['stream_orientation']
+            supported_stream_orientation = room_data['stream_url']['stream_orientation']
             pull_datas = room_data['stream_url'].get('pull_datas')
-            orientation = 2 if stream_orientation == 2 and self.stream_orientation == 2 and pull_datas else 1
+            set_orientation = self.stream_orientation == 2 or stream_orientation == 2
+            orientation = 2 if supported_stream_orientation == 2 and set_orientation and pull_datas else 1
 
             if orientation == 2:
                 room_data['stream_orientation'] = 2
@@ -149,7 +150,7 @@ class DouyinLiveStream(BaseLiveStream):
                 room_data['stream_url']['flv_pull_url'] = {**origin_flv, **flv_pull_url}
                 return room_data
 
-    async def _get_app_web_stream_data(self, url: str, process_data: bool = True):
+    async def _get_app_web_stream_data(self, url: str, process_data: bool = True, stream_orientation: int | None = 1):
         html_str = await async_req(url, proxy_addr=self.proxy_addr, headers=self.pc_headers)
         match_json_str = re.search(
             '</script><script >self.__rsc_f.push\\(\\[1,"(\\{.*?)"]\\)</script><script >self.__rsc_f.push', html_str)
@@ -179,9 +180,10 @@ class DouyinLiveStream(BaseLiveStream):
             return room_data
 
         stream_url = room_data['streamUrl']
-        stream_orientation = stream_url['streamOrientation']
+        supported_stream_orientation = stream_url['streamOrientation']
         pull_datas = stream_url.get('pullDatas')
-        orientation = 2 if stream_orientation == 2 and self.stream_orientation == 2 and pull_datas else 1
+        set_orientation = self.stream_orientation == 2 or stream_orientation == 2
+        orientation = 2 if supported_stream_orientation == 2 and set_orientation and pull_datas else 1
 
         if orientation == 2:
             room_data['stream_orientation'] = 2
@@ -213,13 +215,15 @@ class DouyinLiveStream(BaseLiveStream):
             room_data['streamUrl']['flvPullUrl'] = {**origin_flv, **flv_pull_url}
             return room_data
 
-    async def fetch_app_stream_data(self, url: str, process_data: bool = True) -> dict:
+    async def fetch_app_stream_data(
+            self, url: str, process_data: bool = True, stream_orientation: int | None = 1) -> dict:
         """
         Fetches app stream data for a live room.
 
         Args:
             url (str): The room URL.
             process_data (bool): Whether to process the data. Defaults to True.
+            stream_orientation (int | None): The orientation of the stream. Defaults to 1.
 
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
@@ -227,7 +231,7 @@ class DouyinLiveStream(BaseLiveStream):
         url = url.strip()
         douyin_utils = DouyinUtils()
         try:
-            if self.stream_orientation == 2:
+            if self.stream_orientation == 2 or stream_orientation == 2:
                 # return await self._get_app_web_stream_data(url, process_data)
                 if 'https://live.douyin.com/' in url:
                     web_rid = url.split('?')[0].rsplit('/', maxsplit=1)[-1]
@@ -293,13 +297,15 @@ class DouyinLiveStream(BaseLiveStream):
         return await self._get_web_stream_data(web_rid, process_data)
 
     @deprecated(reason="Use fetch_web_stream_data() instead.", version="4.0.9")
-    async def fetch_web_stream_data_v1(self, url: str, process_data: bool = True) -> dict:
+    async def fetch_web_stream_data_v1(
+            self, url: str, process_data: bool = True, stream_orientation: int | None = 1) -> dict:
         """
         Fetches web stream data for a live room.
 
         Args:
             url (str): The room URL.
             process_data (bool): Whether to process the data. Defaults to True.
+            stream_orientation (int | None): The orientation of the stream. Defaults to 1.
 
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
@@ -331,9 +337,10 @@ class DouyinLiveStream(BaseLiveStream):
                 json_data['live_url'] = url.split('?')[0]
                 if json_data.get('status') == 4:
                     return json_data
-                stream_orientation = json_data['stream_url']['stream_orientation']
+                supported_stream_orientation = json_data['stream_url']['stream_orientation']
                 match_json_str2 = re.findall(r'"(\{\\"common\\":.*?)"]\)</script><script nonce=', html_str)
-                orientation = 2 if stream_orientation == 2 and self.stream_orientation == 2 else 1
+                set_orientation = self.stream_orientation == 2 or stream_orientation == 2
+                orientation = 2 if supported_stream_orientation == 2 and set_orientation else 1
 
                 if match_json_str2 and orientation == 2 and len(match_json_str2) > 1:
                     json_str = match_json_str2[1]

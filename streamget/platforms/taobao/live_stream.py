@@ -1,10 +1,9 @@
+import hashlib
 import re
 import time
 import urllib.parse
 
-import execjs
-
-from ... import JS_SCRIPT_PATH, utils
+from ... import utils
 from ...data import StreamData, wrap_stream
 from ...requests.async_http import async_req
 from ..base import BaseLiveStream
@@ -14,6 +13,7 @@ class TaobaoLiveStream(BaseLiveStream):
     """
     A class for fetching and processing Taobao live stream information.
     """
+
     def __init__(self, proxy_addr: str | None = None, cookies: str | None = None):
         super().__init__(proxy_addr, cookies)
         self.pc_headers = self._get_pc_headers()
@@ -36,9 +36,6 @@ class TaobaoLiveStream(BaseLiveStream):
         Returns:
             dict: A dictionary containing anchor name, live status, room URL, and title.
         """
-        if '_m_h5_tk' not in self.pc_headers['cookie']:
-            raise Exception('Error: Cookies is empty! please input correct cookies')
-
         live_id = self.get_params(url, 'id') or self.get_params(url, 'liveId')
         if not live_id:
             html_str = await async_req(url, proxy_addr=self.proxy_addr, headers=self.pc_headers)
@@ -61,35 +58,44 @@ class TaobaoLiveStream(BaseLiveStream):
             'data': '{"liveId":"' + live_id + '","creatorId":null}',
         }
 
+        new_cookie_str = None
+
         for i in range(2):
-            app_key = '12574478'
-            _m_h5_tk = re.findall('_m_h5_tk=(.*?);', self.pc_headers['cookie'])[0]
+
             t13 = int(time.time() * 1000)
-            pre_sign_str = f'{_m_h5_tk.split("_")[0]}&{t13}&{app_key}&' + params['data']
-            try:
-                with open(f'{JS_SCRIPT_PATH}/taobao-sign.js') as f:
-                    js_code = f.read()
-                sign = execjs.compile(js_code).call('sign', pre_sign_str)
-            except execjs.ProgramError:
-                raise execjs.ProgramError('Failed to execute JS code. Please check if the Node.js environment')
-            params |= {'sign': sign, 't': t13}
+            params['t'] = t13
+
+            if '_m_h5_tk' in self.pc_headers['cookie'] and '_m_h5_tk_enc' in self.pc_headers['cookie']:
+                app_key = '12574478'
+                _m_h5_tk = re.findall('_m_h5_tk=(.*?);', self.pc_headers['cookie'])[0]
+                pre_sign_str = f'{_m_h5_tk.split("_")[0]}&{t13}&{app_key}&' + params['data']
+                sign = hashlib.md5(pre_sign_str.encode("utf-8")).hexdigest()
+                params['sign'] = sign
+
             api = 'https://h5api.m.taobao.com/h5/mtop.mediaplatform.live.livedetail/4.0/?' + \
                   urllib.parse.urlencode(params)
             jsonp_str, new_cookie = await async_req(url=api, proxy_addr=self.proxy_addr, headers=self.pc_headers,
                                                     timeout=20, return_cookies=True, include_cookies=True)
             json_data = utils.jsonp_to_json(jsonp_str)
+            if '哎哟喂,被挤爆啦,请稍后重试' in json_data['ret'][0]:
+                raise RuntimeError(f"Please change your taobao cookie: {json_data['ret']}")
+
             if not process_data:
+                json_data['new_cookies'] = new_cookie_str
                 return json_data
+
             ret_msg = json_data['ret']
             if ret_msg == ['SUCCESS::调用成功']:
                 anchor_name = json_data['data']['broadCaster']['accountName']
                 live_url = 'https://tbzb.taobao.com/live?liveId=' + live_id
                 result = {"anchor_name": anchor_name, "is_live": False, "live_url": live_url}
+                if new_cookie_str:
+                    result['new_cookies'] = new_cookie_str
                 live_status = json_data['data']['streamStatus']
                 if live_status == '1':
                     live_title = json_data['data']['title']
                     play_url_list = json_data['data']['liveUrlList']
-                    
+
                     def get_sort_key(item):
                         definition_priority = {
                             "lld": 0, "ld": 1, "md": 2, "hd": 3, "ud": 4
@@ -100,10 +106,12 @@ class TaobaoLiveStream(BaseLiveStream):
 
                     play_url_list = sorted(play_url_list, key=get_sort_key, reverse=True)
                     result |= {"is_live": True, "title": live_title, "play_url_list": play_url_list}
-
                 return result
             else:
-                raise Exception(f'Error: Taobao live data fetch failed, {ret_msg[0]}')
+                if '_m_h5_tk' not in new_cookie or '_m_h5_tk_enc' not in new_cookie:
+                    raise RuntimeError('Try to update cookie failed, please update the cookies')
+                new_cookie_str = utils.dict_to_cookie_str(new_cookie)
+                self.pc_headers['cookie'] = new_cookie_str
 
     async def fetch_stream_url(self, json_data: dict, video_quality: str | int | None = None) -> StreamData:
         """

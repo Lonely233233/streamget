@@ -10,7 +10,6 @@ from ...requests.async_http import async_req
 from ..base import BaseLiveStream
 from .douyu_signature import DEFAULT_DEVICE_ID, amd, csign, header_auth
 
-
 DOUYU_HUOS_DOMAIN = "openflv-huos.douyucdn2.cn"
 DOUYU_P2P_DOMAIN_TCT = "hdltctwk.douyucdn.cn"
 DOUYU_P2PSDK_APIS = (

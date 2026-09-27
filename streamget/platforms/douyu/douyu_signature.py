@@ -3,7 +3,16 @@ import hashlib
 
 MASK32 = 0xFFFFFFFF
 
-SBOX = "6014ca403b8b353770e2d6bb5a726c3a24ee8e490d8f09ed91561add8dfb87ebc91cc163d432a3abd174b9002a39fe905547a87931a059dabf6d263634d5a961fa75b8cc025042d82d77d9291352ec7b967a1946fc827c23999b439ca5c81b53f6160364f0c5a6aa86c35795ae5b58b5543f7101733d18e3222815271e8489de812e5dad8aff0e80e411c4171d04a4db4a08f3dc4e054c690bb71f0a9e9ff267b34ba2ef5ccee844934197a7e5bec083f788dfb012073ef80f38bc6825fd98666ec7e05fd792e133eabab2bd3c4fcd21cf2c7fb1b6acf4622f104da14845d32bcbb4d27d518ce706f1f55e0c3065786f9daf6ad094e676207e6bf9c2c69ae985"
+SBOX = (
+    "6014ca403b8b353770e2d6bb5a726c3a24ee8e490d8f09ed91561add8dfb87eb"
+    "c91cc163d432a3abd174b9002a39fe905547a87931a059dabf6d263634d5a961"
+    "fa75b8cc025042d82d77d9291352ec7b967a1946fc827c23999b439ca5c81b53"
+    "f6160364f0c5a6aa86c35795ae5b58b5543f7101733d18e3222815271e8489de8"
+    "12e5dad8aff0e80e411c4171d04a4db4a08f3dc4e054c690bb71f0a9e9ff267b"
+    "34ba2ef5ccee844934197a7e5bec083f788dfb012073ef80f38bc6825fd98666e"
+    "c7e05fd792e133eabab2bd3c4fcd21cf2c7fb1b6acf4622f104da14845d32bcbb"
+    "4d27d518ce706f1f55e0c3065786f9daf6ad094e676207e6bf9c2c69ae985"
+)
 
 SALTS = [
     "4ef9e4cad647b8eedae9db94bd93607b",
@@ -589,7 +598,7 @@ def transform(data, table):
 
     v100 = ((v100 & 0xFFFF0000) | ((v100 ^ table[2304 + (v100 >> 8)]) & 0xFFFF)) & MASK32
 
-    v103 = ((((table[v101 & 255] << 8) | 5) ^ v101 ^ v82 ^ 1)) & MASK32
+    v103 = (((table[v101 & 255] << 8) | 5) ^ v101 ^ v82 ^ 1) & MASK32
     v104 = (((v82 ^ v102) ^ (table[512 + (v102 & 255)] << 8)) ^ 9) & MASK32
     v105 = (v104 ^ table[256 + (v104 >> 8)]) & MASK32
 
@@ -603,8 +612,8 @@ def transform(data, table):
             | (((v106 ^ ((v108 & 0xFFFF) << 8))
                  ^ table[1280 + ((v106 ^ (v108 << 8)) >> 8)]) & 0xFFFF)) & MASK32
 
-    v109 = ((((v87 ^ (table[2048 + ((v107 ^ table[2304 + (v107 >> 8)]) & 255)] << 8))
-              ^ v107) ^ table[2304 + (v107 >> 8)] ^ 7)) & MASK32
+    v109 = (((v87 ^ (table[2048 + ((v107 ^ table[2304 + (v107 >> 8)]) & 255)] << 8))
+              ^ v107) ^ table[2304 + (v107 >> 8)] ^ 7) & MASK32
 
     v110 = ((v93 ^ v109) ^ v90) & MASK32
 

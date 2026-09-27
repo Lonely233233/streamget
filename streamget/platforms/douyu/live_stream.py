@@ -8,7 +8,6 @@ from urllib.parse import parse_qsl, urlencode, urlparse
 from ...data import StreamData, wrap_stream
 from ...requests.async_http import async_req
 from ..base import BaseLiveStream
-
 from .douyu_signature import DEFAULT_DEVICE_ID, amd, csign, header_auth
 
 
@@ -33,7 +32,9 @@ def _trim_end_matches(s: str, suffix: str) -> str:
 
 
 def _random_android_device() -> str:
-    letter = lambda: chr(ord("A") + random.randint(0, 25))
+    def letter() -> str:
+        return chr(ord("A") + random.randint(0, 25))
+
     return (
         f"{letter()}{letter()}{letter()}-"
         f"{letter()}{letter()}{random.randint(0, 9)}{random.randint(0, 9)}"
@@ -106,17 +107,12 @@ def _build_huos_url(
     next_params.append(("txTime", tx_secret["tx_time"]))
     next_params.append(("domain", DOUYU_P2P_DOMAIN_TCT))
 
-    # 去掉码率后缀，如 _2000 / _4000 等
     clean_stream_id = re.sub(r'_\d+$', '', stream_id)
 
     return f"http://{DOUYU_HUOS_DOMAIN}/live/{clean_stream_id}.xs?{urlencode(next_params)}"
 
 
 class DouyuLiveStream(BaseLiveStream):
-    """
-    A class for fetching and processing Douyu live stream information.
-    """
-
     WEB_DOMAIN = "www.douyu.com"
     MOBILE_DOMAIN = "m.douyu.com"
 
@@ -152,16 +148,6 @@ class DouyuLiveStream(BaseLiveStream):
         return rid
 
     async def fetch_web_stream_data(self, url: str, process_data: bool = True) -> dict:
-        """
-        Fetches web stream data for a live room.
-
-        Args:
-            url (str): The room URL.
-            process_data (bool): Whether to process the data. Defaults to True.
-
-        Returns:
-            dict: A dictionary containing anchor name, live status, room URL, and title.
-        """
         rid = await self.get_room_id(url)
 
         json_str = await async_req(
@@ -325,9 +311,6 @@ class DouyuLiveStream(BaseLiveStream):
 
     async def fetch_stream_url(
             self, json_data: dict, video_quality: str | int | None = None, cdn: str | None = None) -> StreamData:
-        """
-        Fetches the stream URL for a live room and wraps it into a StreamData object.
-        """
         platform = '斗鱼直播'
         rid = str(json_data["room_id"])
         json_data.pop("room_id")
